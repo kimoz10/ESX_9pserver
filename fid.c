@@ -32,6 +32,7 @@ void fid_list_destroy(fid_list *flist){
 		current = current -> next;
 		//printf("destroying node\n");
 		free(temp -> path);
+		if(temp -> object_handle) free(temp -> object_handle);
 		free(temp);
 	}
 	free(flist);
@@ -66,6 +67,7 @@ int remove_fid_from_list(struct fid_list *flist, uint32_t fid){
 			free(temp -> path);
 			temp -> path = NULL;
 		}
+		if(temp -> object_handle) free(temp -> object_handle);
 		free(temp);
 		return 0;
 	}
@@ -75,6 +77,7 @@ int remove_fid_from_list(struct fid_list *flist, uint32_t fid){
 		if(current -> fid == fid){
 			prev -> next = current -> next;
 			free(current -> path);
+			if(current -> object_handle) free(current -> object_handle);
 			free(current);
 			return 0;
 		}
@@ -98,6 +101,7 @@ fid_node *create_fid_node(uint32_t fid, char* path){
 	fid_node *fnode;
 	fnode = (fid_node *) malloc (sizeof(fid_node));
 	fnode -> fid = fid;
+	fnode -> object_handle = NULL;
 	fnode -> path = (char *) malloc(1000);
 	strncpy(fnode->path, path, 999);
 	fnode -> object_handle = NULL;
