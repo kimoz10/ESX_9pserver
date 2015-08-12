@@ -35,7 +35,7 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 		case P9_TATTACH:{
 			int aname_len;
 			char *aname;
-			char *corrected_name;
+			char *corrected_aname;
 			aname_len = T_p9_obj -> aname_len;
 			aname = T_p9_obj -> aname;
 			corrected_aname = (char *) malloc(aname_len + 2);
