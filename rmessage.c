@@ -32,16 +32,26 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 			R_p9_obj -> version = (char *) malloc(20 * sizeof(char));;
 			strcpy(R_p9_obj -> version, "9P2000");
 			break;
-		case P9_TATTACH:
+		case P9_TATTACH:{
+			int aname_len;
+			char *aname;
+			char *corrected_name;
+			aname_len = T_p9_obj -> aname_len;
+			aname = T_p9_obj -> aname;
+			corrected_aname = (char *) malloc(aname_len + 2);
+			bzero(corrected_aname, aname_len + 2);
+			strcat(corrected_aname, "/");
+			strcat(corrected_aname, aname);
 			R_p9_obj -> size = 20; /* this is the size of the RMessage */
 			R_p9_obj -> qid = (qid_t *) malloc (sizeof(qid_t));
-			make_qid_from_UNIX_file("/", R_p9_obj -> qid);
+			make_qid_from_UNIX_file(corrected_aname, R_p9_obj -> qid);
 			/* adding the entry to the fid table */
-			fid_table_add_fid(fid_table, T_p9_obj -> fid, "/");
-
+			fid_table_add_fid(fid_table, T_p9_obj -> fid, corrected_aname);
+			free(corrected_aname);
 			R_p9_obj -> tag = T_p9_obj -> tag;
 			R_p9_obj -> type = P9_RATTACH;
 			break;
+		}
 		case P9_TSTAT:
 			R_p9_obj -> tag = T_p9_obj -> tag;
 			R_p9_obj -> type = P9_RSTAT;
