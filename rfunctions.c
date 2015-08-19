@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <strings.h>
 #include "objLib.h"
+#include "diskLibWrapper.h"
 
 int permissions(struct stat *st){
 	int permissions;
@@ -207,6 +208,64 @@ int ESX_write(ObjHandle *handleID, uint64_t offset, uint8_t *data, unsigned int 
 	}
 }
 
+int ESX_Vdisk_Write(DiskHandle *disk_handle, unsigned long long offset, uint8_t *data, unsigned int count){
+	int i;
+	SectorType start_sector;
+	int start_sector_offset;
+	SectorType end_sector;
+	uint8_t *temp;
+	SectorType capacity;
+	SectorType dataLen;
+	DiskLibInfo *disk_info;
+        DiskLib_GetInfo(*disk_handle, &disk_info);
+        capacity = disk_info -> capacity; //total number of sectors in the disk
+        free(disk_info);
+        start_sector = offset / DISKLIB_SECTOR_SIZE;
+	start_sector_offset = offset % DISKLIB_SECTOR_SIZE;
+	end_sector = MIN(capacity - 1, (offset + count -1) / DISKLIB_SECTOR_SIZE);
+	dataLen = end_sector - start_sector + 1;
+	temp = (uint8_t *) malloc(DISKLIB_SECTOR_SIZE * dataLen);
+	DiskLib_Read(*disk_handle, start_sector, dataLen, temp, NULL, NULL);
+	for(i = 0; i < count; i++){
+		temp[start_sector_offset + i] = data[i];
+	}
+	DiskLib_Write(*disk_handle, start_sector, dataLen, temp, NULL, NULL);
+	free(temp);
+	return count;
+}
+
+int ESX_Vdisk_Read(DiskHandle *disk_handle, uint8_t *data, unsigned long long offset, unsigned int count){
+	SectorType start_sector;
+	int start_sector_offset;
+	SectorType end_sector;
+	int end_sector_offset;
+	int actual_count;
+	uint8_t *temp;
+	unsigned long long capacity;
+	SectorType dataLen;
+	DiskLibInfo *disk_info;
+	DiskLib_GetInfo(*disk_handle, &disk_info);
+	capacity = disk_info -> capacity; //total number of sectors in the disk
+	free(disk_info);
+	actual_count = -1;
+	start_sector = offset / DISKLIB_SECTOR_SIZE;
+	start_sector_offset = offset % DISKLIB_SECTOR_SIZE;
+	end_sector = MIN(capacity - 1, (offset + count - 1) / DISKLIB_SECTOR_SIZE);
+	dataLen = end_sector - start_sector + 1;
+	temp = (uint8_t *) malloc(DISKLIB_SECTOR_SIZE * dataLen);
+	if(start_sector != end_sector){
+		if(offset + count > capacity * DISKLIB_SECTOR_SIZE) end_sector_offset = DISKLIB_SECTOR_SIZE; /* number of bytes to read from end sector */
+		else end_sector_offset = ((offset + count - 1) % DISKLIB_SECTOR_SIZE) + 1;
+		actual_count = (DISKLIB_SECTOR_SIZE - start_sector_offset) + (end_sector - start_sector - 1) * DISKLIB_SECTOR_SIZE + end_sector_offset;
+	}
+	else{
+		actual_count = MIN(count, DISKLIB_SECTOR_SIZE - start_sector_offset);
+	}
+	DiskLib_Read(*disk_handle, start_sector, dataLen, temp, NULL, NULL);
+	memcpy(data, temp + start_sector_offset, actual_count);
+	free(temp);
+	return actual_count;
+}
 int UNIX_remove(char *path){
 	return remove(path);
 }

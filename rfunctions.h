@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <objLib.h>
+#include <diskLibWrapper.h>
+
 /* creates a qid data structure from a stat datastructure */
 void UNIX_stat_to_qid(struct stat *st, qid_t *qid);
 
@@ -52,4 +54,7 @@ int ESX_read(ObjHandle *handleID, uint8_t *data, unsigned long long offset, unsi
 
 int UNIX_remove(char *path);
 
+int ESX_Vdisk_Write(DiskHandle *disk_handle, unsigned long long offset, uint8_t *data, unsigned int count);
+
+int ESX_Vdisk_Read(DiskHandle *disk_handle, uint8_t *data, unsigned long long offset, unsigned int count);
 #endif /* SRC_RFUNCTIONS_H_ */

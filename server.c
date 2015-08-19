@@ -14,7 +14,7 @@
 #include "rmessage.h"
 #include "fid.h"
 #include <stdint.h>
-
+#include "diskLibWrapper.h"
 #include <objLib.h>
 
 
@@ -110,6 +110,7 @@ void thread_function(void *newsockfd_ptr){
 	/* should be persistent through out the connection */
 	fid_list **fid_table;
 	ObjLib_Init();
+	DiskLib_Init();
 	fid_table = fid_table_init();
 	/* end of fid_table allocation */
         assert(fid_table[0] == NULL);
@@ -206,6 +207,7 @@ void thread_function(void *newsockfd_ptr){
 	free(T_p9_obj);
 	free(R_p9_obj);
 	free(test_p9_obj);
+	DiskLib_Exit();
 	ObjLib_Exit();
 	close(newsockfd);
 }

@@ -33,6 +33,7 @@ void fid_list_destroy(fid_list *flist){
 		//printf("destroying node\n");
 		free(temp -> path);
 		if(temp -> object_handle) free(temp -> object_handle);
+		if(temp -> disk_handle) free(temp -> disk_handle);
 		free(temp);
 	}
 	free(flist);
@@ -68,6 +69,7 @@ int remove_fid_from_list(struct fid_list *flist, uint32_t fid){
 			temp -> path = NULL;
 		}
 		if(temp -> object_handle) free(temp -> object_handle);
+		if(temp -> disk_handle) free(temp -> disk_handle);
 		free(temp);
 		return 0;
 	}
@@ -78,6 +80,7 @@ int remove_fid_from_list(struct fid_list *flist, uint32_t fid){
 			prev -> next = current -> next;
 			free(current -> path);
 			if(current -> object_handle) free(current -> object_handle);
+			if(current -> disk_handle) free(current -> disk_handle);
 			free(current);
 			return 0;
 		}
@@ -104,7 +107,7 @@ fid_node *create_fid_node(uint32_t fid, char* path){
 	fnode -> object_handle = NULL;
 	fnode -> path = (char *) malloc(1000);
 	strncpy(fnode->path, path, 999);
-	fnode -> object_handle = NULL;
+	fnode -> disk_handle = NULL;
 	fnode -> dd = 0;
 	fnode -> next = NULL;
 	return fnode;
@@ -184,6 +187,10 @@ int fid_table_remove_fid(fid_list **fid_table, uint32_t fid){
 			if(fnode -> object_handle != NULL){
 				ObjLib_Close(fnode -> object_handle);
 				fnode -> object_handle = NULL;
+			}
+			if(fnode -> disk_handle != NULL){
+				DiskLib_Close(*fnode -> disk_handle);
+				fnode -> disk_handle = NULL;
 			}
 		}
 	}

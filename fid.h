@@ -13,12 +13,14 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include "objLib.h"
+#include "diskLibWrapper.h"
 
 /* define the fid hash table here */
 struct fid_list **fid_table;
 struct fid_node{
 	uint32_t fid;
 	char *path;
+	DiskHandle *disk_handle; /* this is the handle to a logical virtual disk */
 	ObjHandle *object_handle; /* ESX pointer tp an object handle */
 	DIR *dd; /* UNIX and ESX directory descriptor */
 	struct fid_node *next;

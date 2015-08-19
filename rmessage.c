@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include "diskLibWrapper.h"
 
 void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table){
 	fid_node *fnode;
@@ -64,6 +65,20 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 			make_stat_from_UNIX_file(fnode -> path, R_p9_obj -> stat);
 			if(R_p9_obj -> stat -> qid -> type == 128){
 				R_p9_obj -> stat -> length = 0;
+			}
+			/* Handling the case when stating a virtual disk. Should send the length of the logical disk not the actual descriptor file */
+			if(R_p9_obj -> stat -> qid -> type == 0 && DiskLib_IsDescriptorFile(fnode -> path)){
+				DiskLibError diskError;
+				DiskHandle   disk_handle;
+				DiskLibInfo *disk_info;
+				diskError = DiskLib_OpenWithInfo(fnode -> path, OPEN_PARENT | OPEN_NOIO, NULL, &disk_handle, &disk_info);
+				if(!DiskLib_IsSuccess(diskError)){
+					printf("Error opening virtual disk during a TSTAT");
+					exit(1);
+				}
+				R_p9_obj -> stat -> length = disk_info -> capacity * DISKLIB_SECTOR_SIZE;
+				free(disk_info);
+				DiskLib_Close(disk_handle);
 			}
 			R_p9_obj -> stat_len = get_stat_length(R_p9_obj -> stat) + 2; //the stat length should be the length of the stat + the size
 			R_p9_obj -> size = 7 + 2 + R_p9_obj -> stat_len; //stat[n] and the size field
@@ -207,7 +222,7 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 			R_p9_obj -> qid = (qid_t *) malloc(sizeof(qid_t));
 			make_qid_from_UNIX_file(fnode->path, R_p9_obj -> qid);
 			R_p9_obj -> iounit = 0;
-			if(R_p9_obj -> qid -> type == 0 || R_p9_obj -> qid -> type == 2){ //this is a regular file or a symbolic link
+			if(!DiskLib_IsDescriptorFile(fnode -> path) && (R_p9_obj -> qid -> type == 0 || R_p9_obj -> qid -> type == 2)){ //this is a regular file or a symbolic link and NOT a logical virtual disk
 				ObjHandle *object_handle;
 				ObjOpenParams openParams;
 				ObjLibError objError;
@@ -276,6 +291,43 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 				}
 				else assert(fnode -> object_handle != NULL);
 			}
+			/* Handling the case of a logical virtual disk */
+			else if(DiskLib_IsDescriptorFile(fnode -> path) && (R_p9_obj -> qid -> type == 0)){
+				DiskHandle *disk_handle;
+				DiskLibError diskError;
+				disk_handle = (DiskHandle *)malloc(sizeof(DiskHandle));
+				assert((T_p9_obj -> mode & 0x10) != 0x10 );
+                                if((T_p9_obj->mode != 0) && (T_p9_obj -> mode != 1) && (T_p9_obj -> mode != 2)){
+                                        printf("UNFAMILIAR MODE %d\n", T_p9_obj->mode);
+                                        exit(1);
+                                }
+				/* probably for disks you need to open them for read and write since you can only read and write sectors */
+				switch(T_p9_obj -> mode & 3){
+					case 0:
+						p9_mode = OPEN_PARENT | OPEN_LOCK | OPEN_RDONLY;
+						break;
+					case 1:
+						p9_mode = OPEN_PARENT | OPEN_LOCK;
+						break;
+					case 2:
+						p9_mode = OPEN_PARENT | OPEN_LOCK;
+						break;
+					case 3:
+						p9_mode = OPEN_PARENT | OPEN_LOCK | OPEN_RDONLY;
+						break;
+					default:
+						printf("You should have never reached this point");
+						exit(1);
+				}
+				diskError = DiskLib_Open(fnode -> path, p9_mode, NULL, disk_handle);
+				if(!DiskLib_IsSuccess(diskError)){
+					printf("Error opening virtual disk during TOpen");
+					exit(1);
+				}
+				/* adding the disk handle to the fnode */
+				fnode -> disk_handle = disk_handle;
+				assert(fnode -> disk_handle != NULL);
+			}
 			else{ //file is a directory
 				fnode -> dd = opendir(fnode -> path);
 				if(fnode -> dd == NULL){
@@ -306,7 +358,7 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 			/* handling the directory case */
 			assert(fnode);
 			//fprintf(stderr, "fd is %d\n", fnode -> fd);
-			if(fnode -> object_handle == NULL){ //this must be a directory then
+			if(fnode -> object_handle == NULL && fnode -> disk_handle == NULL){ //this must be a directory then
 				struct dirent *entry;
 				int idx;
 				char *newpathname;
@@ -338,6 +390,19 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 					make_stat_from_UNIX_file(newpathname, s);
 					//int_to_buffer_bytes(get_stat_length(s) + 2, data, idx, 2);
 					//idx += 2;
+					if(DiskLib_IsDescriptorFile(newpathname)){
+						DiskLibError diskError;
+                                		DiskHandle   disk_handle;
+                                		DiskLibInfo *disk_info;
+                                		diskError = DiskLib_OpenWithInfo(newpathname, OPEN_PARENT | OPEN_NOIO, NULL, &disk_handle, &disk_info);
+                                		if(!DiskLib_IsSuccess(diskError)){
+                                        		printf("Error opening virtual disk during a TSTAT");
+                                        		exit(1);
+                                		}
+                                		s -> length = disk_info -> capacity * DISKLIB_SECTOR_SIZE;
+                                		free(disk_info);
+                                		DiskLib_Close(disk_handle);
+					}
 					encode_stat(s, data, idx, get_stat_length(s));
 					idx += (2 + get_stat_length(s));
 
@@ -354,7 +419,7 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 				R_p9_obj -> type = P9_RREAD;
 			}
 			/* handling the file case */
-			else{ //assuming it is a directory(however there are things other than files and directories)
+			else if (fnode -> disk_handle == NULL){ /* not a logical virtual disk file */ 
 				int count, read_bytes;
 				
 				//fprintf(stderr, "inside else\n");
@@ -379,6 +444,29 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 					R_p9_obj -> size = 4 + 1 + 2 + 2 + R_p9_obj -> ename_len;
 				}
 			}
+			/* Now handling the logical virtual disk case */
+			else{
+				int count, read_bytes;
+				count = T_p9_obj -> count;
+				//assert(DiskLib_IsHandleValid(fnode -> disk_handle));
+				read_bytes = ESX_Vdisk_Read(fnode -> disk_handle, data, T_p9_obj -> offset, count);
+				if(read_bytes >= 0){
+                                        R_p9_obj -> count = read_bytes;
+                                        R_p9_obj -> data = data;
+                                        R_p9_obj -> size = 4 + 2 + 4 + 1 + R_p9_obj -> count;
+                                        R_p9_obj -> tag = T_p9_obj -> tag;
+                                        R_p9_obj -> type = P9_RREAD;
+                                }
+                                else{
+                                        R_p9_obj -> type =  P9_RERROR;
+                                        R_p9_obj -> ename_len = strlen(strerror(errno));
+                                        R_p9_obj -> tag = T_p9_obj -> tag;
+                                        R_p9_obj -> ename = (char *) malloc(R_p9_obj -> ename_len + 1);
+                                        bzero(R_p9_obj -> ename, R_p9_obj -> ename_len + 1);
+                                        strcpy(R_p9_obj -> ename, strerror(errno));
+                                        R_p9_obj -> size = 4 + 1 + 2 + 2 + R_p9_obj -> ename_len;
+                                }
+			}
 
 			break;
 			}//ending scope
@@ -398,14 +486,16 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 			count = T_p9_obj -> count;
 			fnode = fid_table_find_fid(fid_table, fid);
 			assert(fnode != NULL);
-			assert(fnode -> object_handle != NULL); /* file must be open */
+			assert((fnode -> object_handle != NULL) || (fnode -> disk_handle != NULL)); /* file must be open */
 #ifdef DEBUG
 			printf("DATA\n");
 			for(i = 0; i < T_p9_obj -> count; i++){
 				printf("%d ", T_p9_obj -> data[i]);
 			}
 #endif
-			write_count = ESX_write(fnode -> object_handle, offset, T_p9_obj -> data, count);
+			if(fnode -> object_handle) write_count = ESX_write(fnode -> object_handle, offset, T_p9_obj -> data, count);
+			/* this is handling the logical virtual disk write case */
+			else write_count = ESX_Vdisk_Write(fnode -> disk_handle, offset, T_p9_obj -> data, count);
 			R_p9_obj -> count = write_count;
 			break;
 		}//ending scope
