@@ -180,6 +180,8 @@ int compare_9p_obj(p9_obj_t *p1, p9_obj_t *p2){
 		assert(s1->type == s2->type);
 		q1 = s1->qid;
 		q2 = s2->qid;
+		q1 = q1;
+		q2 = q2;
 		assert(q1->path == q2->path);
 		assert(q1->version == q2->version);
 		assert(q1->type == q2->type);
@@ -197,6 +199,8 @@ int compare_9p_obj(p9_obj_t *p1, p9_obj_t *p2){
 		qid_t *q2;
 		q1 = p1->qid;
 		q2 = p2->qid;
+		q1 = q1;
+		q2 = q2;
 		assert(q1->path == q2->path);
 		assert(q1->version == q2->version);
 		assert(q1->type == q2->type);
@@ -210,6 +214,8 @@ int compare_9p_obj(p9_obj_t *p1, p9_obj_t *p2){
 			qid_t *q2;
 			q1 = p1->wqid[i];
 			q2 = p2->wqid[i];
+			q1 = q1;
+			q2 = q2;
 			assert(q1->path == q2->path);
 			assert(q1->version == q2->version);
 			assert(q1->type == q2->type);

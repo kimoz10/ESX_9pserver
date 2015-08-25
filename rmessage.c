@@ -71,9 +71,9 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 				DiskLibError diskError;
 				DiskHandle   disk_handle;
 				DiskLibInfo *disk_info;
-				diskError = DiskLib_OpenWithInfo(fnode -> path, OPEN_PARENT | OPEN_NOIO, NULL, &disk_handle, &disk_info);
+				diskError = DiskLib_OpenWithInfo(fnode -> path, OPEN_NOIO, NULL, &disk_handle, &disk_info);
 				if(!DiskLib_IsSuccess(diskError)){
-					printf("Error opening virtual disk during a TSTAT");
+					printf(DiskLib_Err2String(diskError));
 					exit(1);
 				}
 				R_p9_obj -> stat -> length = disk_info -> capacity * DISKLIB_SECTOR_SIZE;
@@ -276,7 +276,10 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 				/* TODO: maybe the object class type should change */
 				ObjLib_SetOpenParams(&openParams, fnode->path, NULL, OBJTYPE_CLASS_GENERIC, p9_mode, OBJ_OPEN, NULL, 0, NULL);
 				objError = ObjLib_Open(&openParams, object_handle);
-			        assert(ObjLib_IsSuccess(objError)); 	
+			        if(!ObjLib_IsSuccess(objError)){
+					printf("Error opening\n");
+					exit(1);
+				} 	
 
 				/* Assigning the file descriptor to the fid node */
 				fnode -> object_handle = object_handle;
@@ -394,9 +397,9 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 						DiskLibError diskError;
                                 		DiskHandle   disk_handle;
                                 		DiskLibInfo *disk_info;
-                                		diskError = DiskLib_OpenWithInfo(newpathname, OPEN_PARENT | OPEN_NOIO, NULL, &disk_handle, &disk_info);
+                                		diskError = DiskLib_OpenWithInfo(newpathname, OPEN_NOIO, NULL, &disk_handle, &disk_info);
                                 		if(!DiskLib_IsSuccess(diskError)){
-                                        		printf("Error opening virtual disk during a TSTAT");
+                                        		printf(DiskLib_Err2String(diskError));
                                         		exit(1);
                                 		}
                                 		s -> length = disk_info -> capacity * DISKLIB_SECTOR_SIZE;
@@ -593,7 +596,10 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 				}
                                 ObjLib_SetOpenParams(&openParams, fnode->path, NULL, OBJTYPE_CLASS_GENERIC, p9_mode, OBJ_OPEN, NULL, 0, NULL);
                                 objError = ObjLib_Open(&openParams, object_handle);
-				assert(ObjLib_IsSuccess(objError));
+				if(!ObjLib_IsSuccess(objError)){
+					printf("Error opening\n");
+					exit(1);
+				}
 
                                 /* Assigning the file descriptor to the fid node */
                                 fnode -> object_handle = object_handle;
