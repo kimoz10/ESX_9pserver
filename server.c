@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include "diskLibWrapper.h"
 #include <objLib.h>
-
+#include <getopt.h>
 
 void error(char *msg)
 {
@@ -212,15 +212,47 @@ void thread_function(void *newsockfd_ptr){
 	close(newsockfd);
 }
 
+void print_usage(){
+	printf("Usage: 9pserver -p <port number> -w <worker threads> -q <task queue size>\n");
+}
 int main(int argc, char *argv[])
 {
+	int opt, long_index, worker_threads, queue_size;
 	int sockfd, newsockfd, portno, clilen;
 	threadpool_t *pool;
 	struct sockaddr_in serv_addr, cli_addr;
-	if(argc < 2){
-		fprintf(stderr, "ERROR, no port provided\n");
-		exit(1);
+	static struct option long_options[] = {
+		{"port", required_argument, 0, 'p'},
+		{"worker-thread-count", required_argument, 0, 'w'},
+		{"queue-size", optional_argument, 0, 'q'},
+		{0, 0, 0, 0}
+	};
+	opt = 0;
+	portno = -1;
+	worker_threads = -1;
+	queue_size = 10; /* default queue size */
+	long_index = 0;
+	while((opt = getopt_long(argc, argv,"p:w:q:", long_options, &long_index)) != -1){
+		switch(opt){
+			case 'p':
+				portno = atoi(optarg);
+				break;
+			case 'w':
+				worker_threads = atoi(optarg);
+				break;
+			case 'q':
+				queue_size = atoi(optarg);
+				break;
+			default:
+				print_usage();
+				exit(EXIT_FAILURE);
+		}
 	}
+	if(portno == -1 || worker_threads == -1){
+		print_usage();
+		exit(EXIT_FAILURE);
+	}
+	
 	//ObjLib_Init();
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(sockfd < 0) {
@@ -228,7 +260,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	bzero(&serv_addr, sizeof(serv_addr));
-	portno = atoi(argv[1]);
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(portno);
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
@@ -236,7 +267,7 @@ int main(int argc, char *argv[])
 		printf("error in binding\n");
 		exit(1);
 	}
-	pool = threadpool_create(2, 10, 0);
+	pool = threadpool_create(worker_threads, queue_size, 0);
 	assert(pool!=NULL);
 	listen(sockfd, 5);
 	clilen = sizeof(cli_addr);
