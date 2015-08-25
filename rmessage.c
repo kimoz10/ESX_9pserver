@@ -25,7 +25,7 @@ void prepare_reply(p9_obj_t *T_p9_obj, p9_obj_t *R_p9_obj, fid_list **fid_table)
 	fid_node *fnode;
 	switch(T_p9_obj -> type){
 		case P9_TVERSION:
-			R_p9_obj -> size = T_p9_obj -> size; /* this is basically the same size as the T message */
+			R_p9_obj -> size = 19; /* this server only understands 9p2000 */
 			R_p9_obj -> type = P9_RVERSION;
 			R_p9_obj -> tag = T_p9_obj -> tag;
 			R_p9_obj -> msize = T_p9_obj -> msize;
